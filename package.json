@@ -1,0 +1,20 @@
+{
+  "name": "spotify-bot",
+  "version": "1.0.0",
+  "description": "Automated Spotify bot that detects new releases from selected artists and adds them to a playlist",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "auth": "node src/auth.js",
+    "add-artist": "node src/add-artist.js",
+    "add-all": "node src/add-all.js"
+  },
+  "keywords": ["spotify", "bot", "automation", "playlist"],
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "node-cron": "^3.0.3",
+    "open": "^10.1.0",
+    "spotify-web-api-node": "^5.0.2"
+  }
+}
