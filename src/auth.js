@@ -22,7 +22,7 @@ async function authenticate() {
 
   return new Promise((resolve, reject) => {
     const server = http.createServer(async (req, res) => {
-      const url = new URL(req.url, `http://localhost:${config.authPort}`);
+      const url = new URL(req.url, `http://127.0.0.1:${config.authPort}`);
 
       if (url.pathname !== '/callback') {
         res.writeHead(404);
@@ -77,8 +77,8 @@ async function authenticate() {
       }
     });
 
-    server.listen(config.authPort, () => {
-      console.log(`\n📡 Callback server listening on port ${config.authPort}`);
+    server.listen(config.authPort, '127.0.0.1', () => {
+      console.log(`\n📡 Callback server listening on http://127.0.0.1:${config.authPort}`);
 
       if (open) {
         console.log('🌐 Opening browser for authentication...\n');

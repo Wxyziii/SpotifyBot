@@ -31,7 +31,7 @@ Automatically detects new releases from your favorite artists and adds them to a
 3. Fill in:
    - **App name**: `Release Bot` (or anything you like)
    - **App description**: Anything
-   - **Redirect URI**: `http://localhost:8888/callback`
+   - **Redirect URI**: `http://127.0.0.1:8888/callback`
 4. Check the **Web API** checkbox
 5. Click **Save**
 6. Note your **Client ID** and **Client Secret**
@@ -54,7 +54,7 @@ Edit `.env` and fill in your values:
 ```env
 SPOTIFY_CLIENT_ID=your_client_id_here
 SPOTIFY_CLIENT_SECRET=your_client_secret_here
-SPOTIFY_REDIRECT_URI=http://localhost:8888/callback
+SPOTIFY_REDIRECT_URI=http://127.0.0.1:8888/callback
 TARGET_PLAYLIST_ID=your_playlist_id_here
 SCAN_INTERVAL_HOURS=12
 AUTH_PORT=8888
@@ -183,7 +183,7 @@ spotify-bot/
 |---|---|---|
 | `SPOTIFY_CLIENT_ID` | Your Spotify app client ID | *required* |
 | `SPOTIFY_CLIENT_SECRET` | Your Spotify app client secret | *required* |
-| `SPOTIFY_REDIRECT_URI` | OAuth callback URL | `http://localhost:8888/callback` |
+| `SPOTIFY_REDIRECT_URI` | OAuth callback URL | `http://127.0.0.1:8888/callback` |
 | `TARGET_PLAYLIST_ID` | Playlist to add tracks to | *required* |
 | `SCAN_INTERVAL_HOURS` | Hours between scans | `12` |
 | `AUTH_PORT` | Port for auth callback server | `8888` |
