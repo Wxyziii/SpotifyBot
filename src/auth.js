@@ -77,15 +77,14 @@ async function authenticate() {
       }
     });
 
-    server.listen(config.authPort, '127.0.0.1', () => {
-      console.log(`\n📡 Callback server listening on http://127.0.0.1:${config.authPort}`);
+    server.listen(config.authPort, '0.0.0.0', () => {
+      console.log(`\n📡 Callback server listening on port ${config.authPort}`);
+      console.log('\n🌐 Open this URL in your browser to authenticate:\n');
+      console.log(`   ${authorizeUrl}\n`);
 
+      // Try to open browser (works on desktop, silently ignored on headless servers)
       if (open) {
-        console.log('🌐 Opening browser for authentication...\n');
-        open(authorizeUrl);
-      } else {
-        console.log('\n🌐 Open this URL in your browser to authenticate:\n');
-        console.log(`   ${authorizeUrl}\n`);
+        open(authorizeUrl).catch(() => {});
       }
     });
 
