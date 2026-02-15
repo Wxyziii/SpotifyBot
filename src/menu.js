@@ -203,28 +203,62 @@ async function handleImportFollowed() {
       return;
     }
 
-    // Show list with toggle selection
     const selected = new Set();
     const currentArtists = getArtists();
     const currentIds = new Set(currentArtists.map((a) => a.id));
 
-    console.log(`  Found ${followed.length} followed artist(s).`);
-    console.log('  Already tracked artists are marked with ✓\n');
+    const COLS = 3;
+    const ROWS = 10;
+    const PER_PAGE = COLS * ROWS;
+    const totalPages = Math.ceil(followed.length / PER_PAGE);
+    let page = 0;
 
     while (true) {
-      console.log('  ' + '─'.repeat(55));
-      followed.forEach((artist, i) => {
-        const alreadyTracked = currentIds.has(artist.id);
-        const isSelected = selected.has(i);
-        let marker = '  ';
-        if (alreadyTracked) marker = ' ✓';
-        else if (isSelected) marker = ' ★';
-        console.log(`    ${String(i + 1).padStart(3)}.${marker} ${artist.name}`);
-      });
-      console.log('  ' + '─'.repeat(55));
+      clearScreen();
+      const start = page * PER_PAGE;
+      const end = Math.min(start + PER_PAGE, followed.length);
+      const pageItems = followed.slice(start, end);
+
       console.log('');
-      console.log('  Enter number(s) to toggle selection (e.g. "1 3 5" or "1-10")');
-      console.log('  Type "all" to select all, "done" to confirm, "cancel" to abort.\n');
+      console.log(`  👥 Followed Artists — Page ${page + 1}/${totalPages}  (${selected.size} selected)`);
+      console.log('  ✓ = already tracked  ★ = selected');
+      console.log('  ' + '─'.repeat(75));
+
+      // Build grid rows
+      const colWidth = 25;
+      const rows = [];
+      for (let r = 0; r < ROWS; r++) {
+        const cells = [];
+        for (let c = 0; c < COLS; c++) {
+          const idx = r + c * ROWS;
+          if (idx >= pageItems.length) { cells.push(''); continue; }
+          const globalIdx = start + idx;
+          const artist = followed[globalIdx];
+          const tracked = currentIds.has(artist.id);
+          const sel = selected.has(globalIdx);
+          let marker = '  ';
+          if (tracked) marker = ' ✓';
+          else if (sel) marker = ' ★';
+          const num = String(globalIdx + 1).padStart(3);
+          const name = artist.name.length > colWidth - 8
+            ? artist.name.slice(0, colWidth - 11) + '...'
+            : artist.name;
+          cells.push(`${num}.${marker} ${name}`.padEnd(colWidth));
+        }
+        if (cells.some((c) => c.trim())) {
+          rows.push('    ' + cells.join('  '));
+        }
+      }
+      rows.forEach((r) => console.log(r));
+
+      console.log('  ' + '─'.repeat(75));
+      console.log('');
+      const nav = [];
+      if (page > 0) nav.push('"p" prev page');
+      if (page < totalPages - 1) nav.push('"n" next page');
+      nav.push('"all" select all', '"none" clear', '"done" confirm', '"cancel" abort');
+      console.log(`  ${nav.join(' | ')}`);
+      console.log('  Toggle: enter numbers/ranges (e.g. "1 3 5" or "1-10")\n');
 
       const input = await ask('  > ');
       const cmd = input.trim().toLowerCase();
@@ -236,6 +270,8 @@ async function handleImportFollowed() {
       }
 
       if (cmd === 'done') break;
+      if (cmd === 'n' && page < totalPages - 1) { page++; continue; }
+      if (cmd === 'p' && page > 0) { page--; continue; }
 
       if (cmd === 'all') {
         followed.forEach((a, i) => {
@@ -244,14 +280,19 @@ async function handleImportFollowed() {
         continue;
       }
 
-      // Parse numbers and ranges like "1 3 5-10"
+      if (cmd === 'none') {
+        selected.clear();
+        continue;
+      }
+
+      // Parse numbers and ranges
       const parts = cmd.split(/[\s,]+/);
       for (const part of parts) {
         const rangeMatch = part.match(/^(\d+)-(\d+)$/);
         if (rangeMatch) {
-          const start = parseInt(rangeMatch[1], 10) - 1;
-          const end = parseInt(rangeMatch[2], 10) - 1;
-          for (let i = Math.max(0, start); i <= Math.min(followed.length - 1, end); i++) {
+          const s = parseInt(rangeMatch[1], 10) - 1;
+          const e = parseInt(rangeMatch[2], 10) - 1;
+          for (let i = Math.max(0, s); i <= Math.min(followed.length - 1, e); i++) {
             if (!currentIds.has(followed[i].id)) {
               if (selected.has(i)) selected.delete(i); else selected.add(i);
             }
