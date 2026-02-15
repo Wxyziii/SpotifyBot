@@ -8,7 +8,7 @@ const {
 const { authenticate } = require('./auth');
 const { searchArtists, getFollowedArtists, getUserPlaylists } = require('./spotify-client');
 const { scanFullCatalog } = require('./scanner');
-const { addNewTracksToPlaylist, syncPlaylist } = require('./playlist');
+const { addNewTracksToPlaylist, syncPlaylist, shufflePlaylist } = require('./playlist');
 const { runScan, startScheduler } = require('./scheduler');
 
 let rl;
@@ -69,9 +69,10 @@ function printMenu() {
   console.log('  │  6.   🎯  Select playlist                         │');
   console.log('  │  7.   📀  Add all songs to playlist               │');
   console.log('  │  8.   🔄  Sync playlist (add missing)             │');
-  console.log('  │  9.   🔍  Run scan now                            │');
-  console.log('  │  10.  🚀  Start bot (24/7 auto-scan)              │');
-  console.log('  │  11.  💾  Presets (save/load/delete)               │');
+  console.log('  │  9.   🔀  Shuffle playlist                        │');
+  console.log('  │  10.  🔍  Run scan now                            │');
+  console.log('  │  11.  🚀  Start bot (24/7 auto-scan)              │');
+  console.log('  │  12.  💾  Presets (save/load/delete)               │');
   console.log('  │  0.   🚪  Exit                                    │');
   console.log('  └────────────────────────────────────────────────────┘');
 
@@ -420,6 +421,15 @@ async function handleAddAll() {
   const durationSec = ((Date.now() - startTime) / 1000).toFixed(1);
 
   console.log(`\n  ✅ Done! Added ${addedCount} track(s) in ${durationSec}s.\n`);
+
+  if (addedCount > 0) {
+    const doShuffle = await ask('  🔀 Shuffle the playlist now? (y/n): ');
+    if (doShuffle.toLowerCase() === 'y') {
+      await shufflePlaylist(playlistId);
+      console.log('');
+    }
+  }
+
   await ask('  Press Enter to continue...');
 }
 
@@ -446,6 +456,29 @@ async function handleSyncPlaylist() {
   const durationSec = ((Date.now() - startTime) / 1000).toFixed(1);
 
   console.log(`\n  Sync complete in ${durationSec}s. Tracks added: ${addedCount}\n`);
+  await ask('  Press Enter to continue...');
+}
+
+async function handleShuffle() {
+  if (!requireAuth()) { await ask('  Press Enter to continue...'); return; }
+
+  const playlistId = getActivePlaylistId();
+  if (!playlistId) {
+    console.log('\n  ⚠️  No playlist selected. Use option 6 first.\n');
+    await ask('  Press Enter to continue...');
+    return;
+  }
+
+  const confirm = await ask('  🔀 Shuffle all tracks in the active playlist? (y/n): ');
+  if (confirm.toLowerCase() !== 'y') {
+    console.log('  Cancelled.\n');
+    await ask('  Press Enter to continue...');
+    return;
+  }
+
+  console.log('');
+  await shufflePlaylist(playlistId);
+  console.log('');
   await ask('  Press Enter to continue...');
 }
 
@@ -601,9 +634,10 @@ async function mainMenu() {
       case '6':  await handleSelectPlaylist(); break;
       case '7':  await handleAddAll(); break;
       case '8':  await handleSyncPlaylist(); break;
-      case '9':  await handleRunScan(); break;
-      case '10': await handleStartBot(); break;
-      case '11': await handlePresets(); break;
+      case '9':  await handleShuffle(); break;
+      case '10': await handleRunScan(); break;
+      case '11': await handleStartBot(); break;
+      case '12': await handlePresets(); break;
       case '0':
         console.log('\n  👋 Goodbye!\n');
         if (rl) rl.close();

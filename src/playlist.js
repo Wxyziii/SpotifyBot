@@ -1,4 +1,4 @@
-const { getPlaylistTracks, addTracksToPlaylist, getArtistAlbums, getAlbumTracks } = require('./spotify-client');
+const { getPlaylistTracks, addTracksToPlaylist, replacePlaylistTracks, getArtistAlbums, getAlbumTracks } = require('./spotify-client');
 const { getActivePlaylistId, getArtists } = require('./store');
 
 async function addNewTracksToPlaylist(newTracks, playlistId) {
@@ -107,4 +107,40 @@ async function syncPlaylist(playlistId) {
   return unique.length;
 }
 
-module.exports = { addNewTracksToPlaylist, syncPlaylist };
+// Fisher-Yates shuffle
+function shuffleArray(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+async function shufflePlaylist(playlistId) {
+  const pid = playlistId || getActivePlaylistId();
+  if (!pid) {
+    console.log('❌ No playlist selected.');
+    return;
+  }
+
+  console.log('\n🔀 Fetching playlist tracks...');
+  const items = await getPlaylistTracks(pid);
+  const uris = items
+    .filter((item) => item.track)
+    .map((item) => item.track.uri);
+
+  if (!uris.length) {
+    console.log('ℹ️  Playlist is empty, nothing to shuffle.');
+    return;
+  }
+
+  console.log(`   Shuffling ${uris.length} track(s)...`);
+  const shuffled = shuffleArray(uris);
+
+  console.log('   Replacing playlist order...');
+  await replacePlaylistTracks(pid, shuffled);
+  console.log(`✅ Playlist shuffled! (${uris.length} tracks randomized)`);
+}
+
+module.exports = { addNewTracksToPlaylist, syncPlaylist, shufflePlaylist };

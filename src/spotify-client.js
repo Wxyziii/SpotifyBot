@@ -225,6 +225,26 @@ async function addTracksToPlaylist(playlistId, uris) {
   }
 }
 
+async function replacePlaylistTracks(playlistId, uris) {
+  const spotifyApi = await ensureAccessToken();
+
+  // First call replaces (clears + sets first 100)
+  const first = uris.slice(0, 100);
+  await withRetry(
+    () => spotifyApi.replaceTracksInPlaylist(playlistId, first),
+    'replacePlaylistTracks(initial)'
+  );
+
+  // Append remaining in batches of 100
+  for (let i = 100; i < uris.length; i += 100) {
+    const batch = uris.slice(i, i + 100);
+    await withRetry(
+      () => spotifyApi.addTracksToPlaylist(playlistId, batch),
+      `replacePlaylistTracks(batch ${Math.floor(i / 100) + 1})`
+    );
+  }
+}
+
 module.exports = {
   createApi,
   getApi,
@@ -236,4 +256,5 @@ module.exports = {
   getAlbumTracks,
   getPlaylistTracks,
   addTracksToPlaylist,
+  replacePlaylistTracks,
 };
