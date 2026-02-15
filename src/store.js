@@ -50,6 +50,15 @@ function setLastChecked(isoString) {
   saveStore(store);
 }
 
+function removeArtist(artistId) {
+  const store = loadStore();
+  const index = store.artists.findIndex((a) => a.id === artistId);
+  if (index === -1) return false;
+  const [removed] = store.artists.splice(index, 1);
+  saveStore(store);
+  return removed;
+}
+
 // --- Token store ---
 
 function loadTokens() {
@@ -73,6 +82,7 @@ module.exports = {
   saveStore,
   getArtists,
   addArtist,
+  removeArtist,
   getLastChecked,
   setLastChecked,
   loadTokens,

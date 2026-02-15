@@ -1,13 +1,13 @@
 # 🎵 Spotify Release Bot
 
-Automatically detects new releases from your favorite artists and adds them to a Spotify playlist. Runs 24/7 as a background process — no manual action required after setup.
+Automatically detects new releases from your favorite artists and adds them to a Spotify playlist. Everything is managed through a single interactive terminal menu — just run `npm start`.
 
 ## Features
 
+- **Interactive menu** — authenticate, manage artists, scan, and start the bot from one command
 - Tracks only artists you manually select
-- Scans every 12 hours (configurable)
-- Detects new albums and singles
-- Adds new tracks to your target playlist
+- Bulk-add entire artist catalogs to your playlist
+- Scans every 12 hours (configurable) for new releases
 - Skips duplicates automatically
 - Handles pagination, rate limits, and retries
 - Runs unattended with PM2
@@ -31,10 +31,15 @@ Automatically detects new releases from your favorite artists and adds them to a
 3. Fill in:
    - **App name**: `Release Bot` (or anything you like)
    - **App description**: Anything
-   - **Redirect URI**: `http://192.168.1.7:8888/callback`
+   - **Redirect URI**: `http://127.0.0.1:8888/callback`
 4. Check the **Web API** checkbox
 5. Click **Save**
 6. Note your **Client ID** and **Client Secret**
+
+> **Headless / SSH setup:** If running on a remote server, use SSH port forwarding so the callback works from your local browser:
+> ```bash
+> ssh -L 8888:127.0.0.1:8888 user@your-server-ip
+> ```
 
 ### 2. Get Your Playlist ID
 
@@ -54,7 +59,7 @@ Edit `.env` and fill in your values:
 ```env
 SPOTIFY_CLIENT_ID=your_client_id_here
 SPOTIFY_CLIENT_SECRET=your_client_secret_here
-SPOTIFY_REDIRECT_URI=http://192.168.1.7:8888/callback
+SPOTIFY_REDIRECT_URI=http://127.0.0.1:8888/callback
 TARGET_PLAYLIST_ID=your_playlist_id_here
 SCAN_INTERVAL_HOURS=12
 AUTH_PORT=8888
@@ -66,48 +71,61 @@ AUTH_PORT=8888
 npm install
 ```
 
-### 5. Authenticate with Spotify
-
-```bash
-npm run auth
-```
-
-This opens your browser for Spotify login. After authorizing, tokens are saved locally. You only need to do this **once**.
-
-### 6. Add Artists to Track
-
-```bash
-npm run add-artist "Radiohead"
-npm run add-artist "Kendrick Lamar"
-npm run add-artist "Billie Eilish"
-```
-
-Each command searches Spotify and lets you select the correct artist from the results.
-
-### 7. Add All Songs from Tracked Artists (Optional)
-
-```bash
-npm run add-all
-```
-
-This performs a **one-time bulk import** of every album, single, and track from all your tracked artists into the target playlist. Duplicates are skipped automatically. Useful for backfilling a playlist before letting the bot handle new releases going forward.
-
-### 8. Start the Bot
+### 5. Start the Bot
 
 ```bash
 npm start
 ```
 
-The bot will:
-1. Run an immediate scan
-2. Schedule automatic scans every 12 hours
-3. Add any new tracks to your playlist
+This opens the interactive menu:
+
+```
+  ╔══════════════════════════════════════════╗
+  ║         🎵  Spotify Release Bot          ║
+  ╚══════════════════════════════════════════╝
+
+  Status:    ❌ Not authenticated
+  Artists:   0 tracked
+  Playlist:  your_playlist_id
+  Interval:  Every 12h
+
+  ┌──────────────────────────────────────────┐
+  │  1.  🔐  Authenticate with Spotify       │
+  │  2.  ➕  Add artist                      │
+  │  3.  ➖  Remove artist                   │
+  │  4.  📋  View tracked artists            │
+  │  5.  📀  Add all songs to playlist       │
+  │  6.  🔍  Run scan now                    │
+  │  7.  🚀  Start bot (24/7 auto-scan)     │
+  │  0.  🚪  Exit                            │
+  └──────────────────────────────────────────┘
+```
+
+**First time:**
+1. Select **1** to authenticate (prints a URL — open it in your browser)
+2. Select **2** to add artists (search by name, pick from results)
+3. Select **7** to start the 24/7 bot
+
+---
+
+## Menu Options
+
+| Option | Description |
+|--------|-------------|
+| **1. Authenticate** | Run the Spotify OAuth flow. Prints a URL to open in your browser. Only needed once. |
+| **2. Add artist** | Search for an artist by name, select from results, and start tracking them. |
+| **3. Remove artist** | Remove a tracked artist from the list. |
+| **4. View artists** | Show all currently tracked artists. |
+| **5. Add all songs** | One-time bulk import of every album/single from all tracked artists into the playlist. |
+| **6. Run scan now** | Manually trigger a scan for new releases. |
+| **7. Start bot** | Enter 24/7 mode — runs an immediate scan, then auto-scans every N hours. |
+| **0. Exit** | Quit the program. |
 
 ---
 
 ## Running with PM2 (Recommended for Production)
 
-PM2 keeps the bot running 24/7, restarts it on crash, and can start it on system boot.
+Once you've authenticated and added artists via the menu, use PM2 to run the bot in 24/7 mode.
 
 ### Install PM2
 
@@ -117,27 +135,22 @@ npm install -g pm2
 
 ### Start the Bot with PM2
 
+Since PM2 runs non-interactively, start the bot directly in bot mode:
+
 ```bash
-pm2 start src/index.js --name spotify-bot
+pm2 start src/index.js --name spotify-bot -- --bot
 ```
+
+> **Note:** Run `npm start` interactively first to authenticate and add artists. Then use PM2 for the 24/7 bot.
 
 ### Useful PM2 Commands
 
 ```bash
-# View logs
-pm2 logs spotify-bot
-
-# Check status
-pm2 status
-
-# Restart
-pm2 restart spotify-bot
-
-# Stop
-pm2 stop spotify-bot
-
-# Remove from PM2
-pm2 delete spotify-bot
+pm2 logs spotify-bot     # View logs
+pm2 status               # Check status
+pm2 restart spotify-bot  # Restart
+pm2 stop spotify-bot     # Stop
+pm2 delete spotify-bot   # Remove
 ```
 
 ### Auto-Start on System Boot
@@ -147,8 +160,6 @@ pm2 startup
 # Follow the instructions it prints, then:
 pm2 save
 ```
-
-Now the bot will automatically restart if the server reboots.
 
 ---
 
@@ -165,10 +176,9 @@ spotify-bot/
 │   ├── store.json          # Artists & lastChecked (git-ignored)
 │   └── tokens.json         # Auth tokens (git-ignored)
 └── src/
-    ├── index.js            # Main entry point
+    ├── index.js            # Entry point
+    ├── menu.js             # Interactive terminal menu
     ├── auth.js             # Spotify OAuth flow
-    ├── add-artist.js       # CLI: add artist command
-    ├── add-all.js          # CLI: bulk-add full catalog to playlist
     ├── config.js           # Environment config
     ├── store.js            # JSON file persistence
     ├── spotify-client.js   # Spotify API wrapper with retry logic
@@ -183,34 +193,26 @@ spotify-bot/
 |---|---|---|
 | `SPOTIFY_CLIENT_ID` | Your Spotify app client ID | *required* |
 | `SPOTIFY_CLIENT_SECRET` | Your Spotify app client secret | *required* |
-| `SPOTIFY_REDIRECT_URI` | OAuth callback URL | `http://192.168.1.7:8888/callback` |
+| `SPOTIFY_REDIRECT_URI` | OAuth callback URL | `http://127.0.0.1:8888/callback` |
 | `TARGET_PLAYLIST_ID` | Playlist to add tracks to | *required* |
 | `SCAN_INTERVAL_HOURS` | Hours between scans | `12` |
 | `AUTH_PORT` | Port for auth callback server | `8888` |
 
 ---
 
-## How It Works
-
-1. **Scheduler** triggers a scan every N hours (and once on startup)
-2. **Scanner** fetches albums/singles for each tracked artist
-3. Releases with a `release_date` after `lastChecked` are flagged as new
-4. **Playlist Manager** fetches existing playlist tracks to avoid duplicates
-5. Only genuinely new tracks are added
-6. `lastChecked` timestamp is updated
-
----
-
 ## Troubleshooting
 
 **"Not authenticated" error**
-→ Run `npm run auth` first.
+→ Select option 1 from the menu to authenticate.
 
 **"Missing required config" error**
 → Make sure `.env` exists and all required values are filled in.
+
+**"INVALID_CLIENT: Insecure redirect URI"**
+→ Spotify requires `http://127.0.0.1` (not `localhost` or a LAN IP). If on a remote server, use SSH port forwarding.
 
 **No new tracks being added**
 → Check that your artists have released music since the last scan. On the first run, the bot looks back 14 days.
 
 **Rate limit errors**
-→ The bot handles rate limits automatically with exponential backoff. If you track many artists, scans may take longer.
+→ The bot handles rate limits automatically with exponential backoff.
