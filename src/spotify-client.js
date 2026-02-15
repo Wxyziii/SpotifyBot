@@ -30,7 +30,6 @@ async function ensureAccessToken() {
   const spotifyApi = getApi();
   const now = Date.now();
 
-  // Refresh if token expires within the next 5 minutes
   if (now >= tokenExpiresAt - 5 * 60 * 1000) {
     console.log('🔄 Refreshing access token...');
     try {
@@ -66,7 +65,6 @@ async function withRetry(fn, label = 'API call') {
     } catch (err) {
       const status = err.statusCode || err.status;
 
-      // Rate limited – respect Retry-After header
       if (status === 429) {
         const retryAfter = (parseInt(err.headers?.['retry-after'], 10) || 5) * 1000;
         console.warn(`⏳ Rate limited on "${label}". Retrying in ${retryAfter / 1000}s...`);
@@ -99,6 +97,54 @@ async function searchArtists(query, limit = 10) {
     `searchArtists("${query}")`
   );
   return result.body.artists.items;
+}
+
+async function getFollowedArtists() {
+  const spotifyApi = await ensureAccessToken();
+  const artists = [];
+  let after = null;
+
+  while (true) {
+    const opts = { limit: 50 };
+    if (after) opts.after = after;
+
+    const result = await withRetry(
+      () => spotifyApi.getFollowedArtists(opts),
+      `getFollowedArtists(after=${after})`
+    );
+
+    const items = result.body.artists.items;
+    artists.push(...items);
+
+    const cursor = result.body.artists.cursors;
+    if (cursor && cursor.after) {
+      after = cursor.after;
+    } else {
+      break;
+    }
+  }
+
+  return artists;
+}
+
+async function getUserPlaylists() {
+  const spotifyApi = await ensureAccessToken();
+  const playlists = [];
+  let offset = 0;
+  let total = Infinity;
+
+  while (offset < total) {
+    const result = await withRetry(
+      () => spotifyApi.getUserPlaylists({ limit: 50, offset }),
+      `getUserPlaylists(offset=${offset})`
+    );
+
+    playlists.push(...result.body.items);
+    total = result.body.total;
+    offset += 50;
+  }
+
+  return playlists;
 }
 
 async function getArtistAlbums(artistId, { includeGroups = 'album,single', limit = 50 } = {}) {
@@ -170,7 +216,6 @@ async function getPlaylistTracks(playlistId) {
 async function addTracksToPlaylist(playlistId, uris) {
   const spotifyApi = await ensureAccessToken();
 
-  // Spotify limits to 100 tracks per request
   for (let i = 0; i < uris.length; i += 100) {
     const batch = uris.slice(i, i + 100);
     await withRetry(
@@ -185,6 +230,8 @@ module.exports = {
   getApi,
   ensureAccessToken,
   searchArtists,
+  getFollowedArtists,
+  getUserPlaylists,
   getArtistAlbums,
   getAlbumTracks,
   getPlaylistTracks,

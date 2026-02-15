@@ -1,16 +1,21 @@
-const { getPlaylistTracks, addTracksToPlaylist } = require('./spotify-client');
-const { config } = require('./config');
+const { getPlaylistTracks, addTracksToPlaylist, getArtistAlbums, getAlbumTracks } = require('./spotify-client');
+const { getActivePlaylistId, getArtists } = require('./store');
 
-async function addNewTracksToPlaylist(newTracks) {
+async function addNewTracksToPlaylist(newTracks, playlistId) {
+  const pid = playlistId || getActivePlaylistId();
+  if (!pid) {
+    console.log('❌ No playlist selected. Use the menu to select a playlist.');
+    return 0;
+  }
+
   if (!newTracks.length) {
     console.log('ℹ️  No new tracks to add.');
     return 0;
   }
 
-  const playlistId = config.targetPlaylistId;
   console.log(`\n📋 Fetching existing playlist tracks...`);
 
-  const existingItems = await getPlaylistTracks(playlistId);
+  const existingItems = await getPlaylistTracks(pid);
   const existingUris = new Set(
     existingItems
       .filter((item) => item.track)
@@ -19,12 +24,10 @@ async function addNewTracksToPlaylist(newTracks) {
 
   console.log(`   Playlist currently has ${existingUris.size} track(s).`);
 
-  // Filter out duplicates
   const newUris = newTracks
     .map((t) => t.uri)
     .filter((uri) => uri && !existingUris.has(uri));
 
-  // Deduplicate within the new batch itself
   const uniqueNewUris = [...new Set(newUris)];
 
   if (!uniqueNewUris.length) {
@@ -33,10 +36,75 @@ async function addNewTracksToPlaylist(newTracks) {
   }
 
   console.log(`➕ Adding ${uniqueNewUris.length} new track(s) to playlist...`);
-  await addTracksToPlaylist(playlistId, uniqueNewUris);
+  await addTracksToPlaylist(pid, uniqueNewUris);
   console.log(`✅ Successfully added ${uniqueNewUris.length} track(s)!`);
 
   return uniqueNewUris.length;
 }
 
-module.exports = { addNewTracksToPlaylist };
+/**
+ * Sync playlist: scan what should be there based on tracked artists,
+ * compare with what's in the playlist, and add missing tracks.
+ */
+async function syncPlaylist(playlistId) {
+  const pid = playlistId || getActivePlaylistId();
+  if (!pid) {
+    console.log('❌ No playlist selected.');
+    return 0;
+  }
+
+  const artists = getArtists();
+  if (!artists.length) {
+    console.log('⚠️  No artists tracked.');
+    return 0;
+  }
+
+  console.log(`\n🔄 Syncing playlist...`);
+  console.log(`📋 Fetching existing playlist tracks...`);
+
+  const existingItems = await getPlaylistTracks(pid);
+  const existingUris = new Set(
+    existingItems
+      .filter((item) => item.track)
+      .map((item) => item.track.uri)
+  );
+
+  console.log(`   Playlist currently has ${existingUris.size} track(s).`);
+  console.log(`🎤 Scanning ${artists.length} artist(s) for all tracks...\n`);
+
+  const missingUris = [];
+
+  for (const artist of artists) {
+    try {
+      console.log(`  🔍 ${artist.name}...`);
+      const albums = await getArtistAlbums(artist.id);
+
+      for (const album of albums) {
+        const tracks = await getAlbumTracks(album.id);
+        for (const track of tracks) {
+          if (track.uri && !existingUris.has(track.uri)) {
+            missingUris.push(track.uri);
+            existingUris.add(track.uri); // avoid duplicates in batch
+          }
+        }
+      }
+    } catch (err) {
+      console.error(`  ❌ Error scanning ${artist.name}: ${err.message}`);
+    }
+  }
+
+  const unique = [...new Set(missingUris)];
+
+  if (!unique.length) {
+    console.log('\n✅ Playlist is fully synced — no missing tracks.');
+    return 0;
+  }
+
+  console.log(`\n➕ Adding ${unique.length} missing track(s)...`);
+  await addTracksToPlaylist(pid, unique);
+  console.log(`✅ Synced! Added ${unique.length} track(s).`);
+
+  return unique.length;
+}
+
+module.exports = { addNewTracksToPlaylist, syncPlaylist };

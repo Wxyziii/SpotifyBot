@@ -1,6 +1,6 @@
 const { mainMenu } = require('./menu');
-const { config, validate } = require('./config');
-const { loadTokens } = require('./store');
+const { validate } = require('./config');
+const { loadTokens, getActivePlaylistId, getArtists } = require('./store');
 const { runScan, startScheduler } = require('./scheduler');
 
 // Graceful shutdown
@@ -25,11 +25,20 @@ process.on('uncaughtException', (err) => {
 // --bot flag: skip menu, go straight to 24/7 scanning (for PM2)
 async function botMode() {
   console.log('\n  🎵 Spotify Release Bot (bot mode)\n');
-  validate(['clientId', 'clientSecret', 'targetPlaylistId']);
+  validate(['clientId', 'clientSecret']);
 
-  const tokens = loadTokens();
-  if (!tokens) {
+  if (!loadTokens()) {
     console.error('  ❌ Not authenticated. Run `npm start` interactively first.');
+    process.exit(1);
+  }
+
+  if (!getActivePlaylistId()) {
+    console.error('  ❌ No playlist selected. Run `npm start` interactively and select one.');
+    process.exit(1);
+  }
+
+  if (!getArtists().length) {
+    console.error('  ❌ No artists tracked. Run `npm start` interactively to add some.');
     process.exit(1);
   }
 
