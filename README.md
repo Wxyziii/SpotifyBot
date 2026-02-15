@@ -4,13 +4,19 @@ Automatically detects new releases from your favorite artists and adds them to a
 
 ## Features
 
-- **Interactive menu** — authenticate, manage artists, scan, and start the bot from one command
-- Tracks only artists you manually select
-- Bulk-add entire artist catalogs to your playlist
-- Scans every 12 hours (configurable) for new releases
-- Skips duplicates automatically
-- Handles pagination, rate limits, and retries
-- Runs unattended with PM2
+- **Single interactive menu** from `npm start` for everything
+- Track artists manually or import from your followed artists
+- **Followed artists grid UI** (paginated 3-column view with multi-select)
+- Select target playlist directly from your Spotify playlists (not hardcoded)
+- Bulk-add catalogs with filters:
+  - release type: albums / singles+EPs / everything
+  - date range: from/to (YYYY-MM-DD)
+- Sync playlist by scanning tracked artists and adding missing tracks
+- Shuffle playlist order randomly (standalone or right after add-all)
+- Save/load/delete **artist presets**
+- Auto-scans every 12 hours (configurable)
+- Handles pagination, retries, and rate limits
+- Runs unattended with PM2 (`--bot` mode)
 
 ---
 
@@ -41,12 +47,16 @@ Automatically detects new releases from your favorite artists and adds them to a
 > ssh -L 8888:127.0.0.1:8888 user@your-server-ip
 > ```
 
-### 2. Get Your Playlist ID
+### 2. (Optional) Get a Default Playlist ID
 
-1. Open Spotify and navigate to the playlist you want tracks added to (or create a new one)
+You can choose playlists from inside the menu (option 6), so this is optional.
+
+If you want a default playlist in `.env`:
+
+1. Open Spotify and navigate to a playlist
 2. Click **Share → Copy link to playlist**
-3. The URL looks like: `https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M`
-4. The playlist ID is the part after `/playlist/`: `37i9dQZF1DXcBWIGoYBM5M`
+3. Extract the playlist ID from the URL:
+   `https://open.spotify.com/playlist/<PLAYLIST_ID>`
 
 ### 3. Configure Environment Variables
 
@@ -60,7 +70,8 @@ Edit `.env` and fill in your values:
 SPOTIFY_CLIENT_ID=your_client_id_here
 SPOTIFY_CLIENT_SECRET=your_client_secret_here
 SPOTIFY_REDIRECT_URI=http://127.0.0.1:8888/callback
-TARGET_PLAYLIST_ID=your_playlist_id_here
+# Optional default playlist (you can also pick from menu option 6)
+# TARGET_PLAYLIST_ID=your_playlist_id_here
 SCAN_INTERVAL_HOURS=12
 AUTH_PORT=8888
 ```
@@ -80,31 +91,37 @@ npm start
 This opens the interactive menu:
 
 ```
-  ╔══════════════════════════════════════════╗
-  ║         🎵  Spotify Release Bot          ║
-  ╚══════════════════════════════════════════╝
+  ╔══════════════════════════════════════════════════╗
+  ║            🎵  Spotify Release Bot               ║
+  ╚══════════════════════════════════════════════════╝
 
   Status:    ❌ Not authenticated
   Artists:   0 tracked
-  Playlist:  your_playlist_id
+  Playlist:  ⚠️  Not selected
   Interval:  Every 12h
 
-  ┌──────────────────────────────────────────┐
-  │  1.  🔐  Authenticate with Spotify       │
-  │  2.  ➕  Add artist                      │
-  │  3.  ➖  Remove artist                   │
-  │  4.  📋  View tracked artists            │
-  │  5.  📀  Add all songs to playlist       │
-  │  6.  🔍  Run scan now                    │
-  │  7.  🚀  Start bot (24/7 auto-scan)     │
-  │  0.  🚪  Exit                            │
-  └──────────────────────────────────────────┘
+  ┌────────────────────────────────────────────────────┐
+  │  1.   🔐  Authenticate with Spotify               │
+  │  2.   ➕  Add artist (search)                     │
+  │  3.   ➖  Remove artist                           │
+  │  4.   📋  View tracked artists                    │
+  │  5.   👥  Import from followed artists            │
+  │  6.   🎯  Select playlist                         │
+  │  7.   📀  Add all songs to playlist               │
+  │  8.   🔄  Sync playlist (add missing)             │
+  │  9.   🔀  Shuffle playlist                        │
+  │  10.  🔍  Run scan now                            │
+  │  11.  🚀  Start bot (24/7 auto-scan)              │
+  │  12.  💾  Presets (save/load/delete)               │
+  │  0.   🚪  Exit                                    │
+  └────────────────────────────────────────────────────┘
 ```
 
 **First time:**
 1. Select **1** to authenticate (prints a URL — open it in your browser)
-2. Select **2** to add artists (search by name, pick from results)
-3. Select **7** to start the 24/7 bot
+2. Select **5** (import from followed artists grid) or **2** (manual search)
+3. Select **6** to choose your target playlist
+4. Select **11** to start the 24/7 bot
 
 ---
 
@@ -116,9 +133,14 @@ This opens the interactive menu:
 | **2. Add artist** | Search for an artist by name, select from results, and start tracking them. |
 | **3. Remove artist** | Remove a tracked artist from the list. |
 | **4. View artists** | Show all currently tracked artists. |
-| **5. Add all songs** | One-time bulk import of every album/single from all tracked artists into the playlist. |
-| **6. Run scan now** | Manually trigger a scan for new releases. |
-| **7. Start bot** | Enter 24/7 mode — runs an immediate scan, then auto-scans every N hours. |
+| **5. Import from followed artists** | Shows followed artists in a **paginated grid** (3 columns), with multi-select using numbers/ranges and page navigation (`n`/`p`). |
+| **6. Select playlist** | Lists your playlists and saves the selected one as active playlist. |
+| **7. Add all songs** | Bulk import with filters for release type (albums/singles/everything) and optional date range, plus optional shuffle after completion. |
+| **8. Sync playlist** | Scans tracked artists, checks current playlist first, and adds only missing tracks. |
+| **9. Shuffle playlist** | Randomly reshuffles all songs in the active playlist. |
+| **10. Run scan now** | Manually trigger a scan for new releases. |
+| **11. Start bot** | Enter 24/7 mode — runs an immediate scan, then auto-scans every N hours. |
+| **12. Presets** | Save/load/delete named artist selections. |
 | **0. Exit** | Quit the program. |
 
 ---
@@ -141,7 +163,7 @@ Since PM2 runs non-interactively, start the bot directly in bot mode:
 pm2 start src/index.js --name spotify-bot -- --bot
 ```
 
-> **Note:** Run `npm start` interactively first to authenticate and add artists. Then use PM2 for the 24/7 bot.
+> **Note:** Run `npm start` interactively first to authenticate, select a playlist, and add artists. Then use PM2 for the 24/7 bot.
 
 ### Useful PM2 Commands
 
@@ -194,7 +216,7 @@ spotify-bot/
 | `SPOTIFY_CLIENT_ID` | Your Spotify app client ID | *required* |
 | `SPOTIFY_CLIENT_SECRET` | Your Spotify app client secret | *required* |
 | `SPOTIFY_REDIRECT_URI` | OAuth callback URL | `http://127.0.0.1:8888/callback` |
-| `TARGET_PLAYLIST_ID` | Playlist to add tracks to | *required* |
+| `TARGET_PLAYLIST_ID` | Optional default playlist ID (can also be selected in menu) | `null` |
 | `SCAN_INTERVAL_HOURS` | Hours between scans | `12` |
 | `AUTH_PORT` | Port for auth callback server | `8888` |
 
@@ -210,6 +232,12 @@ spotify-bot/
 
 **"INVALID_CLIENT: Insecure redirect URI"**
 → Spotify requires `http://127.0.0.1` (not `localhost` or a LAN IP). If on a remote server, use SSH port forwarding.
+
+**"No playlist selected"**
+→ Use menu option **6** to select an active playlist.
+
+**Followed artists import fails or is empty**
+→ Re-run authentication (option **1**) to grant the `user-follow-read` scope.
 
 **No new tracks being added**
 → Check that your artists have released music since the last scan. On the first run, the bot looks back 14 days.
