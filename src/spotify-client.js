@@ -63,7 +63,21 @@ async function withRetry(fn, label = 'API call') {
     try {
       return await fn();
     } catch (err) {
-      const status = err.statusCode || err.status;
+      const status = err.statusCode || err.status || err.body?.error?.status;
+      
+      // Extract meaningful error message
+      let message = 'Unknown error';
+      if (err.body?.error?.message) {
+        message = err.body.error.message;
+      } else if (err.message && err.message !== '[object Object]') {
+        message = err.message;
+      } else if (err.body) {
+        message = JSON.stringify(err.body);
+      } else {
+        // Log the full error for debugging
+        console.error('Full error object:', Object.keys(err), err);
+        message = String(err);
+      }
 
       if (status === 429) {
         const retryAfter = (parseInt(err.headers?.['retry-after'], 10) || 5) * 1000;
@@ -74,11 +88,11 @@ async function withRetry(fn, label = 'API call') {
 
       if (attempt < config.retryAttempts) {
         const delay = config.retryDelayMs * attempt;
-        console.warn(`⚠️  "${label}" attempt ${attempt} failed: ${err.message}. Retrying in ${delay}ms...`);
+        console.warn(`⚠️  "${label}" attempt ${attempt} failed: ${message}. Retrying in ${delay}ms...`);
         await sleep(delay);
       } else {
-        console.error(`❌ "${label}" failed after ${config.retryAttempts} attempts: ${err.message}`);
-        throw err;
+        console.error(`❌ "${label}" failed after ${config.retryAttempts} attempts: ${message}`);
+        throw new Error(message);
       }
     }
   }
@@ -245,6 +259,136 @@ async function replacePlaylistTracks(playlistId, uris) {
   }
 }
 
+async function getMyTopArtists(timeRange = 'medium_term', limit = 20) {
+  const spotifyApi = await ensureAccessToken();
+  const result = await withRetry(
+    () => spotifyApi.getMyTopArtists({ time_range: timeRange, limit }),
+    `getMyTopArtists(${timeRange})`
+  );
+  return result.body.items;
+}
+
+async function getMyTopTracks(timeRange = 'medium_term', limit = 20) {
+  const spotifyApi = await ensureAccessToken();
+  const result = await withRetry(
+    () => spotifyApi.getMyTopTracks({ time_range: timeRange, limit }),
+    `getMyTopTracks(${timeRange})`
+  );
+  return result.body.items;
+}
+
+async function getRelatedArtists(artistId) {
+  const spotifyApi = await ensureAccessToken();
+  const result = await withRetry(
+    () => spotifyApi.getArtistRelatedArtists(artistId),
+    `getRelatedArtists(${artistId})`
+  );
+  return result.body.artists;
+}
+
+async function getArtistTopTracks(artistId, market = 'US') {
+  const spotifyApi = await ensureAccessToken();
+  const result = await withRetry(
+    () => spotifyApi.getArtistTopTracks(artistId, market),
+    `getArtistTopTracks(${artistId})`
+  );
+  return result.body.tracks;
+}
+
+async function createPlaylist(name, description = '', isPublic = false) {
+  const spotifyApi = await ensureAccessToken();
+  const me = await withRetry(() => spotifyApi.getMe(), 'getMe');
+  const userId = me.body.id;
+  
+  const result = await withRetry(
+    () => spotifyApi.createPlaylist(userId, name, { description, public: isPublic }),
+    `createPlaylist("${name}")`
+  );
+  return result.body;
+}
+
+async function getArtist(artistId) {
+  const spotifyApi = await ensureAccessToken();
+  const result = await withRetry(
+    () => spotifyApi.getArtist(artistId),
+    `getArtist(${artistId})`
+  );
+  return result.body;
+}
+
+async function searchByGenre(genre, type = 'artist', limit = 50) {
+  const spotifyApi = await ensureAccessToken();
+  const query = `genre:"${genre}"`;
+  const result = await withRetry(
+    () => spotifyApi.search(query, [type], { limit }),
+    `searchByGenre("${genre}")`
+  );
+  return result.body;
+}
+
+async function searchTracks(query, limit = 50) {
+  const spotifyApi = await ensureAccessToken();
+  const result = await withRetry(
+    () => spotifyApi.searchTracks(query, { limit }),
+    `searchTracks("${query}")`
+  );
+  return result.body.tracks.items;
+}
+
+async function getNewReleases(limit = 50, country = 'US') {
+  const spotifyApi = await ensureAccessToken();
+  const result = await withRetry(
+    () => spotifyApi.getNewReleases({ limit, country }),
+    'getNewReleases'
+  );
+  return result.body.albums.items;
+}
+
+async function getMySavedTracks(limit = 50) {
+  const spotifyApi = await ensureAccessToken();
+  const tracks = [];
+  let offset = 0;
+  
+  // Get first batch to check total
+  const first = await withRetry(
+    () => spotifyApi.getMySavedTracks({ limit: 50, offset: 0 }),
+    'getMySavedTracks(initial)'
+  );
+  tracks.push(...first.body.items);
+  
+  // Limit to first 200 tracks for performance
+  const maxTracks = Math.min(first.body.total, limit);
+  offset = 50;
+  
+  while (offset < maxTracks) {
+    const result = await withRetry(
+      () => spotifyApi.getMySavedTracks({ limit: 50, offset }),
+      `getMySavedTracks(offset=${offset})`
+    );
+    tracks.push(...result.body.items);
+    offset += 50;
+  }
+  
+  return tracks;
+}
+
+async function getMultipleArtists(artistIds) {
+  const spotifyApi = await ensureAccessToken();
+  const artists = [];
+  
+  // Spotify allows max 50 artists per request
+  for (let i = 0; i < artistIds.length; i += 50) {
+    const batch = artistIds.slice(i, i + 50);
+    const result = await withRetry(
+      () => spotifyApi.getArtists(batch),
+      `getMultipleArtists(batch ${Math.floor(i / 50) + 1})`
+    );
+    artists.push(...result.body.artists.filter(a => a !== null));
+  }
+  
+  return artists;
+}
+
 module.exports = {
   createApi,
   getApi,
@@ -257,4 +401,15 @@ module.exports = {
   getPlaylistTracks,
   addTracksToPlaylist,
   replacePlaylistTracks,
+  getMyTopArtists,
+  getMyTopTracks,
+  getRelatedArtists,
+  getArtistTopTracks,
+  createPlaylist,
+  getArtist,
+  searchByGenre,
+  searchTracks,
+  getNewReleases,
+  getMySavedTracks,
+  getMultipleArtists,
 };

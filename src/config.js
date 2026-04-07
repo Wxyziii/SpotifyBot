@@ -12,6 +12,7 @@ const config = {
     'playlist-modify-public',
     'playlist-modify-private',
     'user-follow-read',
+    'user-top-read',
   ],
   storePath: require('path').join(__dirname, '..', 'data', 'store.json'),
   tokensPath: require('path').join(__dirname, '..', 'data', 'tokens.json'),

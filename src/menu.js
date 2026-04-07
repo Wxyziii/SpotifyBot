@@ -10,6 +10,13 @@ const { searchArtists, getFollowedArtists, getUserPlaylists } = require('./spoti
 const { scanFullCatalog } = require('./scanner');
 const { addNewTracksToPlaylist, syncPlaylist, shufflePlaylist } = require('./playlist');
 const { runScan, startScheduler } = require('./scheduler');
+const {
+  generateDiscoveryPlaylist,
+  fetchTopArtists,
+  TIME_RANGES,
+  DISCOVERY_LEVELS,
+  PLAYLIST_SIZES,
+} = require('./discovery');
 
 let rl;
 
@@ -72,7 +79,8 @@ function printMenu() {
   console.log('  │  9.   🔀  Shuffle playlist                        │');
   console.log('  │  10.  🔍  Run scan now                            │');
   console.log('  │  11.  🚀  Start bot (24/7 auto-scan)              │');
-  console.log('  │  12.  💾  Presets (save/load/delete)               │');
+  console.log('  │  12.  💾  Presets (save/load/delete)              │');
+  console.log('  │  13.  ✨  Generate discovery playlist             │');
   console.log('  │  0.   🚪  Exit                                    │');
   console.log('  └────────────────────────────────────────────────────┘');
 
@@ -614,6 +622,127 @@ async function handlePresets() {
   }
 }
 
+async function handleDiscovery() {
+  if (!requireAuth()) { await ask('  Press Enter to continue...'); return; }
+
+  console.log('\n  ╔══════════════════════════════════════════════════╗');
+  console.log('  ║         ✨  Discovery Playlist Generator         ║');
+  console.log('  ╚══════════════════════════════════════════════════╝\n');
+
+  // Step 1: Choose seed source
+  console.log('  How do you want to seed recommendations?\n');
+  console.log('    1. Your top artists (from Spotify listening history)');
+  console.log('    2. Your tracked artists (in this bot)\n');
+
+  const seedChoice = (await ask('  Select (1-2): ')).trim();
+  let seedSource = 'top';
+  let timeRange = 'medium_term';
+
+  if (seedChoice === '2') {
+    seedSource = 'tracked';
+    const trackedArtists = getArtists();
+    if (!trackedArtists.length) {
+      console.log('\n  ⚠️  No tracked artists. Add some artists first (option 2 or 5).\n');
+      await ask('  Press Enter to continue...');
+      return;
+    }
+  } else if (seedChoice !== '1') {
+    console.log('  Cancelled.\n');
+    await ask('  Press Enter to continue...');
+    return;
+  }
+
+  // Step 1b: Time range (only for top artists)
+  if (seedSource === 'top') {
+    console.log('\n  Time range for top artists:\n');
+    console.log('    1. Last 4 weeks');
+    console.log('    2. Last 6 months (recommended)');
+    console.log('    3. All time\n');
+
+    const timeChoice = (await ask('  Select (1-3) [2]: ')).trim() || '2';
+    if (timeChoice === '1') timeRange = 'short_term';
+    else if (timeChoice === '3') timeRange = 'long_term';
+    else timeRange = 'medium_term';
+  }
+
+  // Step 2: Discovery level
+  console.log('\n  How much new music do you want?\n');
+  console.log('    1. Mostly familiar (80% artists you know, 20% discovery)');
+  console.log('    2. Balanced (50/50) - recommended');
+  console.log('    3. Explore mode (20% familiar, 80% new artists)\n');
+
+  const levelChoice = (await ask('  Select (1-3) [2]: ')).trim() || '2';
+  let discoveryLevel = 'balanced';
+  if (levelChoice === '1') discoveryLevel = 'familiar';
+  else if (levelChoice === '3') discoveryLevel = 'explore';
+
+  // Step 3: Playlist size
+  console.log('\n  Playlist size:\n');
+  console.log('    1. 30 tracks (~1.5 hours)');
+  console.log('    2. 50 tracks (~2.5 hours) - recommended');
+  console.log('    3. 100 tracks (~5 hours)\n');
+
+  const sizeChoice = (await ask('  Select (1-3) [2]: ')).trim() || '2';
+  let playlistSize = 'medium';
+  if (sizeChoice === '1') playlistSize = 'small';
+  else if (sizeChoice === '3') playlistSize = 'large';
+
+  // Confirmation
+  console.log('\n  ─────────────────────────────────────────────────────');
+  console.log('  Ready to generate!\n');
+
+  const confirm = await ask('  Continue? (y/n): ');
+  if (confirm.toLowerCase() !== 'y') {
+    console.log('  Cancelled.\n');
+    await ask('  Press Enter to continue...');
+    return;
+  }
+
+  console.log('\n  🎵 Generating your discovery playlist...\n');
+
+  try {
+    const result = await generateDiscoveryPlaylist({
+      seedSource,
+      timeRange,
+      discoveryLevel,
+      playlistSize,
+      excludePlaylistId: getActivePlaylistId(),
+    });
+
+    console.log('\n  ═══════════════════════════════════════════════════');
+    console.log('  ✅ Playlist created successfully!\n');
+    console.log(`  📝 Name: ${result.playlist.name}`);
+    console.log(`  🔢 Tracks: ${result.trackCount}`);
+    console.log(`  📊 Mix: ${result.stats.familiar} familiar + ${result.stats.discovery} discovery\n`);
+
+    if (result.newArtists.length) {
+      console.log('  🎧 New artists to check out:');
+      result.newArtists.slice(0, 8).forEach(name => {
+        console.log(`     • ${name}`);
+      });
+      console.log('');
+    }
+
+    console.log(`  🔗 Open: https://open.spotify.com/playlist/${result.playlist.id}\n`);
+
+    // Try to open in browser
+    const openChoice = await ask('  Open in Spotify? (y/n): ');
+    if (openChoice.toLowerCase() === 'y') {
+      try {
+        const open = (await import('open')).default;
+        await open(`https://open.spotify.com/playlist/${result.playlist.id}`);
+      } catch (e) {
+        console.log('  (Could not open browser automatically)');
+      }
+    }
+
+  } catch (err) {
+    console.error(`\n  ❌ Error: ${err.message}\n`);
+  }
+
+  await ask('\n  Press Enter to continue...');
+}
+
 // --- Main loop ---
 
 async function mainMenu() {
@@ -638,6 +767,7 @@ async function mainMenu() {
       case '10': await handleRunScan(); break;
       case '11': await handleStartBot(); break;
       case '12': await handlePresets(); break;
+      case '13': await handleDiscovery(); break;
       case '0':
         console.log('\n  👋 Goodbye!\n');
         if (rl) rl.close();

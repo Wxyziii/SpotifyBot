@@ -141,7 +141,49 @@ This opens the interactive menu:
 | **10. Run scan now** | Manually trigger a scan for new releases. |
 | **11. Start bot** | Enter 24/7 mode — runs an immediate scan, then auto-scans every N hours. |
 | **12. Presets** | Save/load/delete named artist selections. |
+| **13. Discovery playlist** | Generate a personalized playlist based on your listening habits (see below). |
 | **0. Exit** | Quit the program. |
+
+---
+
+## Discovery Playlist Feature
+
+The **Discovery Playlist Generator** (option 13) creates personalized playlists that mix familiar music with new discoveries.
+
+### How it works
+
+1. **Choose your seed source:**
+   - **Your top artists** — uses your Spotify listening history (last 4 weeks, 6 months, or all time)
+   - **Tracked artists** — uses artists you've added to this bot
+   - **Search for a genre** — e.g., "polish hip hop", "trap", "rock"
+
+2. **Choose discovery level:**
+   - **Mostly familiar (80/20)** — safe, mostly artists you know
+   - **Balanced (50/50)** — recommended mix of both
+   - **Explore mode (20/80)** — mostly new artists to discover
+
+3. **Choose playlist size:** 30, 50, or 100 tracks
+
+4. **Bot creates a new playlist** with a name like "Discover - Polish Hip Hop - Apr 7, 2026"
+
+### Example output
+
+```
+✅ Playlist created successfully!
+
+📝 Name: Discover - Polish Hip Hop - Apr 7, 2026
+🔢 Tracks: 50
+📊 Mix: 25 familiar + 25 discovery
+
+🎧 New artists to check out:
+   • Szpaku
+   • Bedoes
+   • Young Leosia
+   • OKI
+   • Tymek
+```
+
+> **Note:** First time using this feature? You may need to re-authenticate (option 1) to grant the `user-top-read` permission.
 
 ---
 
